@@ -1,45 +1,41 @@
 import { useEffect, useRef, useState } from "react";
 import css from "./Circle.module.scss";
-
-const CIRCLE_RADIUS = 100;
-const DEFAULT_SIZE = 500;
-const DEFAULT_DIVISIONS = 100;
-const DEFAULT_T = 0.5;
+import { getColor, gradientNextColor } from "../../common/utils/color-utils";
+import { Formula, IRGB, LineType } from "../../common/types";
+import { DEFAULT_RADIUS, DEFAULT_SIZE } from "../../common/constants";
+import { computeDot, divPosition } from "../../common/utils/formula-utils";
 
 interface ICircleProps {
-  canvasWidth?: number;
-  canvasHeight?: number;
-  divisions?: number;
-  radius?: number;
-}
-
-interface IVector {
-  x: number;
-  y: number;
+  formula: Formula;
+  interval: number;
+  lineType: LineType;
+  divisions: number;
+  angleSpeed: number;
+  coefficientStep: number;
 }
 
 export function Circle({
-  canvasHeight = DEFAULT_SIZE,
-  canvasWidth = DEFAULT_SIZE,
-  divisions = DEFAULT_DIVISIONS,
-  radius = CIRCLE_RADIUS,
+  formula,
+  divisions,
+  interval,
+  lineType,
+  coefficientStep,
+  angleSpeed,
 }: ICircleProps) {
-  const [coefficient, setCoefficient] = useState(2);
+  const [coefficient, setCoefficient] = useState(0);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const divAngle = (Math.PI * 2) / divisions;
-  const [red, setRed] = useState(255);
-  const [green, setGreen] = useState(0);
-  const [blue, setBlue] = useState(0);
-  const [transperence, setTransperence] = useState(1);
+  const [color, setColor] = useState<IRGB>({ red: 255, green: 0, blue: 0 });
+  const [angle, setAngle] = useState(0);
 
   function drawBorder(ctx: CanvasRenderingContext2D) {
     ctx.beginPath();
     ctx.lineWidth = 0.5;
     ctx.ellipse(
-      canvasHeight / 2,
-      canvasWidth / 2,
-      radius * 2,
-      radius * 2,
+      DEFAULT_SIZE / 2,
+      DEFAULT_SIZE / 2,
+      DEFAULT_RADIUS * 2,
+      DEFAULT_RADIUS * 2,
       0,
       0,
       1000
@@ -47,96 +43,70 @@ export function Circle({
     ctx.stroke();
   }
 
-  function divPosition(num: number): IVector {
-    const x = Math.cos(divAngle * num) * radius * 2;
-    const y = Math.sin(divAngle * num) * radius * 2;
-    return { x, y };
-  }
-
-  function getNewColor(index?: number): string {
-    if (red === 255) {
-      if (blue > 0) {
-        setBlue(blue - 1);
-      } else if (green < 255) {
-        setGreen(green + 1);
-      } else {
-        setRed(red - 1);
-      }
-    } else if (green === 255) {
-      if (red > 0) {
-        setRed(red - 1);
-      } else if (blue < 255) {
-        setBlue(blue + 1);
-      } else {
-        setGreen(green - 1);
-      }
-    } else if (blue === 255) {
-      if (green > 0) {
-        setGreen(green - 1);
-      } else if (red < 255) {
-        setRed(red + 1);
-      } else {
-        setBlue(blue - 1);
-      }
-    }
-
-    if (index) {
-      setTransperence((1 / index) * 100);
-    } else {
-      setTransperence(1);
-    }
-
-    return "rgb(" + red + "," + green + "," + blue + "," + transperence + ")";
-  }
-
   function draw(ctx: CanvasRenderingContext2D, coefficient: number) {
     // draw simple circle
-    ctx.clearRect(0, 0, canvasWidth, canvasHeight);
+    ctx.clearRect(0, 0, DEFAULT_SIZE, DEFAULT_SIZE);
     ctx.strokeStyle = "white";
     drawBorder(ctx);
 
+    const newColor = gradientNextColor(color);
+
     for (let index = 0; index < divisions; index++) {
-      const x = index;
-      const y = x * Math.tan(coefficient) * 10;
+      const dotStart = index;
 
-      const startPosition = divPosition(x);
-      const middlePosition = divPosition((x + y) / 2);
-      const endPosition = divPosition(y);
+      const dotEnd = computeDot(dotStart, coefficient, formula);
 
-      ctx.strokeStyle = getNewColor(index);
+      const startPosition = divPosition(
+        dotStart,
+        divAngle,
+        DEFAULT_RADIUS,
+        angle
+      );
+      const middlePosition = divPosition(
+        (dotStart + dotEnd) / 2,
+        divAngle,
+        DEFAULT_RADIUS,
+        angle
+      );
+      const endPosition = divPosition(dotEnd, divAngle, DEFAULT_RADIUS, angle);
+
+      ctx.strokeStyle = getColor(newColor);
 
       ctx.beginPath();
       ctx.moveTo(
-        canvasWidth / 2 + startPosition.x,
-        canvasHeight / 2 + startPosition.y
+        DEFAULT_SIZE / 2 + startPosition.x,
+        DEFAULT_SIZE / 2 + startPosition.y
       );
 
-      //Линии
-      // ctx.lineTo(
-      //   canvasWidth / 2 + endPosition.x,
-      //   canvasHeight / 2 + endPosition.y
-      // );
+      if (lineType === LineType.Line) {
+        //Линии
+        ctx.lineTo(
+          DEFAULT_SIZE / 2 + endPosition.x,
+          DEFAULT_SIZE / 2 + endPosition.y
+        );
+      } else if (lineType === LineType.Curve) {
+        //Кривые
+        ctx.bezierCurveTo(
+          DEFAULT_SIZE / 2 + startPosition.x,
+          DEFAULT_SIZE / 2 + startPosition.y,
+          DEFAULT_SIZE / 2 + endPosition.x,
+          DEFAULT_SIZE / 2 + endPosition.y,
+          DEFAULT_SIZE / 2 + middlePosition.x,
+          DEFAULT_SIZE / 2 + middlePosition.y
+        );
+      } else if (lineType === LineType.Circle) {
+        //Круги
+        ctx.ellipse(
+          DEFAULT_SIZE / 2,
+          DEFAULT_SIZE / 2,
+          Math.abs(middlePosition.x),
+          Math.abs(middlePosition.y),
+          startPosition.x,
+          endPosition.y,
+          1000
+        );
+      }
 
-      //Кривые
-      ctx.bezierCurveTo(
-        canvasWidth / 2 + startPosition.x,
-        canvasHeight / 2 + startPosition.y,
-        canvasWidth / 2 + endPosition.x,
-        canvasHeight / 2 + endPosition.y,
-        canvasWidth / 2 + middlePosition.x,
-        canvasHeight / 2 + middlePosition.y
-      );
-
-      //Круги
-      // ctx.ellipse(
-      //   canvasHeight / 2,
-      //   canvasWidth / 2,
-      //   x,
-      //   y,
-      //   Math.abs(endPosition.x),
-      //   Math.abs(endPosition.y),
-      //   1000
-      // );
       ctx.stroke();
       ctx.closePath();
     }
@@ -160,34 +130,41 @@ export function Circle({
     };
   }, [coefficient]);
 
+  //TODO: timeline useEffect
+
   useEffect(() => {
-    const interval = setInterval(onChange, 10);
+    const newInterval = setInterval(onChange, interval);
     return () => {
-      /* do cleanup or unmount */
-      clearInterval(interval);
+      clearInterval(newInterval);
     };
   });
 
   const onChange = () => {
     let newCoefficient = 0;
     if (coefficient < 100) {
-      newCoefficient = coefficient + 0.001;
+      newCoefficient = coefficient + coefficientStep;
     }
+
+    let newAngle = 0;
+    if (angle + angleSpeed <= 360) {
+      newAngle = angle + angleSpeed;
+    }
+
+    setAngle(newAngle);
     setCoefficient(newCoefficient);
   };
 
   const onMove = (e: React.MouseEvent<HTMLDivElement, MouseEvent>) => {
-    const newCoefficient = e.nativeEvent.offsetX / 1000;
-    setCoefficient(newCoefficient);
-    console.log(newCoefficient);
+    // const newCoefficient = e.nativeEvent.offsetX / 1000;
+    // setCoefficient(newCoefficient);
   };
 
   return (
     <div className={css.circle} onMouseMove={(e) => onMove(e)}>
       <canvas
         ref={canvasRef}
-        width={canvasWidth}
-        height={canvasHeight}
+        width={DEFAULT_SIZE}
+        height={DEFAULT_SIZE}
       ></canvas>
     </div>
   );

@@ -1,0 +1,18 @@
+.controlGroup {
+  padding-left: 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  border: 0.5px solid #c8c8c833;
+  border-radius: 6px;
+  padding: 8px;
+  color: #c8c8c8;
+}
+
+.openButton {
+  cursor: pointer;
+  user-select: none;
+  display: flex;
+  justify-content: space-between;
+  width: 100%;
+}
